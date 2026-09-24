@@ -65,7 +65,7 @@ COLUMNAS_SALIDA = [
     'Monto del concepto', 'Afecto', 'Id de institución', 'Cotización de jubilación',
     'Días de licencias', 'Días trabajados', 'Fecha de aplicación', 'Empresa',
     'Total de rebajas por LLSS', 'Rentas no gravadas', 'Rebaja por zona extrema',
-    'Jornada', 'Días de vacaciones', 'Monto Init', 'Fase', 'parcial7', 'Parcial8',
+    'Jornada', 'Días de vacaciones', 'Monto Init', 'Fase', 'Parcial 7', 'Parcial 8',
 ]
 
 
@@ -351,8 +351,8 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
                 'Rentas no gravadas': entero(suma_exentos) if idc == 'impuesto' else 0,
                 'Monto Init': entero(r.get('SUELDO ORIGINAL')) if idc == 'sueldoBase' else 0,
                 'Fase': fase if usa_fase else None,
-                'parcial7': entero(r.get('ULT IMP')) if idc in ('mutual', 'sis') else 0,
-                'Parcial8': afecto_ces if idc in ('cesAporteSol', 'cesAporteCi') else 0,
+                'Parcial 7': entero(r.get('ULT IMP')) if idc in ('mutual', 'sis') else 0,
+                'Parcial 8': afecto_ces if idc in ('cesAporteSol', 'cesAporteCi') else 0,
             })
             filas.append(fila)
 
