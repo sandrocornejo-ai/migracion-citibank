@@ -11,7 +11,7 @@ from datetime import datetime
 import streamlit as st
 
 from procesador import (
-    cargar_equivalencias, cargar_consolidado, validar_estructura, procesar, a_excel,
+    cargar_equivalencias, cargar_consolidado, validar_estructura, procesar, a_excel, a_excel_hojas,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,12 +93,12 @@ if errores:
 st.markdown('<div class="step">3 · Procesar</div>', unsafe_allow_html=True)
 if st.button('Generar archivo de salida', type='primary'):
     with st.spinner('Procesando…'):
-        out, log, res = procesar(df, equiv, orden, tipos, usa_fase=usa_fase,
-                                 fase=int(fase) if fase else None)
-    st.session_state['resultado'] = (out, log, res, archivo.name)
+        out, log, cuad, res = procesar(df, equiv, orden, tipos, usa_fase=usa_fase,
+                                       fase=int(fase) if fase else None)
+    st.session_state['resultado'] = (out, log, cuad, res, archivo.name)
 
-if 'resultado' in st.session_state and st.session_state['resultado'][3] == archivo.name:
-    out, log, res, _ = st.session_state['resultado']
+if 'resultado' in st.session_state and st.session_state['resultado'][4] == archivo.name:
+    out, log, cuad, res, _ = st.session_state['resultado']
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Empresa', res['empresa'])
@@ -108,16 +108,17 @@ if 'resultado' in st.session_state and st.session_state['resultado'][3] == archi
     st.caption('Meses: ' + ', '.join(f"{m} ({n})" for m, n in res['por_mes'].items()))
 
     n_err = int((log['Tipo'] == 'ERROR').sum()) if len(log) else 0
-    n_cua = int((log['Tipo'] == 'CUADRATURA').sum()) if len(log) else 0
+    n_cua = res['cuadra_dif']
     n_adv = int((log['Tipo'] == 'ADVERTENCIA').sum()) if len(log) else 0
     if n_err:
         st.error(f'{n_err} columnas sin equivalencia (no se migran). Revisa el log.')
     if n_cua:
-        st.warning(f'{n_cua} diferencias de cuadratura contra los totales del archivo. Revisa el log.')
+        st.warning(f"Cuadratura: {res['cuadra_ok']} liquidaciones OK y {n_cua} con diferencia "
+                   "(haberes − descuentos ≠ sueldo líquido). Revisa la pestaña Cuadratura.")
     if n_adv:
         st.warning(f'{n_adv} advertencias. Revisa el log.')
     if not (n_err or n_cua or n_adv):
-        st.success('Sin errores ni diferencias de cuadratura.')
+        st.success(f"Sin errores. Cuadratura OK en las {res['cuadra_ok']} liquidaciones.")
 
     sello = datetime.now().strftime('%Y%m%d_%H%M%S')
     d1, d2 = st.columns(2)
@@ -125,14 +126,17 @@ if 'resultado' in st.session_state and st.session_state['resultado'][3] == archi
                        file_name=f"migracion_citibank_{res['empresa']}_{sello}.xlsx",
                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                        type='primary', use_container_width=True)
-    if len(log):
-        d2.download_button('⬇️ Descargar log de validaciones', a_excel(log, 'Log'),
-                           file_name=f"log_citibank_{res['empresa']}_{sello}.xlsx",
-                           mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                           use_container_width=True)
+    d2.download_button('⬇️ Descargar cuadratura y log', a_excel_hojas({'Cuadratura': cuad, 'Log': log}),
+                       file_name=f"cuadratura_citibank_{res['empresa']}_{sello}.xlsx",
+                       mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                       use_container_width=True)
 
-    tab1, tab2 = st.tabs(['Vista previa salida', 'Log'])
+    tab1, tab2, tab3 = st.tabs(['Vista previa salida', 'Cuadratura', 'Log'])
     with tab1:
         st.dataframe(out.head(500), use_container_width=True, hide_index=True)
     with tab2:
+        solo_dif = st.checkbox('Mostrar solo diferencias', value=True)
+        st.dataframe(cuad[cuad['Estado'] != 'OK'] if solo_dif else cuad,
+                     use_container_width=True, hide_index=True)
+    with tab3:
         st.dataframe(log, use_container_width=True, hide_index=True)

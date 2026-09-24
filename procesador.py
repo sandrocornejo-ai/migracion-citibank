@@ -222,6 +222,7 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
                   if t in TIPOS_DESCUENTO and c != 'totalesEmpl'}
 
     filas = []
+    cuadratura = []
     ruts_invalidos = set()
     for idx, r in df.iterrows():
         mes = normalizar_mes(r.get('Mes'))
@@ -251,21 +252,20 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
         suma_afectos = sum(v for k, v in montos.items() if k in afectos)
         suma_exentos = sum(v for k, v in montos.items() if k in exentos)
 
-        # ── Cuadratura contra totales del archivo de entrada ──
+        # ── Cuadratura simple: haberes - descuentos (sin líquido) vs líquido ──
         suma_desc = sum(v for k, v in montos.items() if k in descuentos)
         liquido = montos.get('totalesEmpl', 0)
-        for nombre, calc, origen in (
-            ('TOTAL HABERES', suma_afectos + suma_exentos, r.get('TOTAL HABERES')),
-            ('TOTAL DESCUENTOS', suma_desc, r.get('TOTAL DESCUENTOS')),
-        ):
-            if not esta_vacio(origen) and abs(calc - num(origen)) > TOLERANCIA:
-                log.append({'Tipo': 'CUADRATURA', 'Mes': mes, 'RUT': rut, 'Detalle':
-                            f"{nombre}: conceptos {calc:.0f} vs archivo {num(origen):.0f} "
-                            f"(dif {calc - num(origen):.0f})"})
-        if abs(suma_afectos + suma_exentos - suma_desc - liquido) > TOLERANCIA:
-            log.append({'Tipo': 'CUADRATURA', 'Mes': mes, 'RUT': rut, 'Detalle':
-                        f"Líquido: haberes - descuentos = {suma_afectos + suma_exentos - suma_desc:.0f} "
-                        f"vs totalesEmpl {liquido:.0f}"})
+        calculado = suma_afectos + suma_exentos - suma_desc
+        diferencia = calculado - liquido
+        cuadratura.append({
+            'Mes': mes, 'RUT': rut,
+            'Total haberes': entero(suma_afectos + suma_exentos),
+            'Total descuentos': entero(suma_desc),
+            'Haberes - Descuentos': entero(calculado),
+            'Sueldo líquido': entero(liquido),
+            'Diferencia': entero(diferencia),
+            'Estado': 'OK' if abs(diferencia) <= TOLERANCIA else 'DIFERENCIA',
+        })
 
         imponible = entero(r.get('IMPONIBLE'))
         tope_afc = r.get('TOPE IMPONIBLE AFC TRABAJADOR')
@@ -359,6 +359,9 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
     columnas = [c for c in COLUMNAS_SALIDA if usa_fase or c != 'Fase']
     df_out = pd.DataFrame(filas, columns=COLUMNAS_SALIDA)[columnas]
     df_log = pd.DataFrame(log, columns=['Tipo', 'Mes', 'RUT', 'Detalle'])
+    df_cuad = pd.DataFrame(cuadratura, columns=['Mes', 'RUT', 'Total haberes', 'Total descuentos',
+                                                'Haberes - Descuentos', 'Sueldo líquido',
+                                                'Diferencia', 'Estado'])
 
     resumen = {
         'empresa': limpiar_texto(df['ID EMPRESA'].dropna().iloc[0]) if df['ID EMPRESA'].notna().any() else '',
@@ -368,23 +371,37 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
         'filas': len(df_out),
         'por_mes': df_out.groupby('Fecha de proceso')['Id empleado'].nunique().to_dict(),
         'sin_equivalencia': sin_equiv,
+        'cuadra_ok': int((df_cuad['Estado'] == 'OK').sum()),
+        'cuadra_dif': int((df_cuad['Estado'] != 'OK').sum()),
     }
-    return df_out, df_log, resumen
+    return df_out, df_log, df_cuad, resumen
 
 
 # ─────────────────────────────────────────────────────────────────
 #  EXPORTACIÓN
 # ─────────────────────────────────────────────────────────────────
 
-COLS_TEXTO = {'Fecha de proceso', 'Id empleado', 'Id del concepto', 'Id de institución',
+COLS_TEXTO = {'Mes', 'RUT', 'Estado', 'Fecha de proceso', 'Id empleado', 'Id del concepto', 'Id de institución',
               'Fecha de aplicación', 'Empresa', 'Jornada'}
 
 
 def a_excel(df, hoja='Liquidaciones'):
     """DataFrame → bytes .xlsx con encabezado formateado y números sin separador de miles."""
+    return a_excel_hojas({hoja: df})
+
+
+def a_excel_hojas(hojas):
+    """{nombre_hoja: DataFrame} → bytes .xlsx."""
     wb = Workbook()
-    ws = wb.active
-    ws.title = hoja
+    wb.remove(wb.active)
+    for hoja, df in hojas.items():
+        _escribir_hoja(wb.create_sheet(hoja), df)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _escribir_hoja(ws, df):
     ws.append(list(df.columns))
     for c in ws[1]:
         c.font = Font(bold=True, color='FFFFFF')
@@ -402,6 +419,10 @@ def a_excel(df, hoja='Liquidaciones'):
                 else:
                     cell.number_format = '0'
     ws.freeze_panes = 'A2'
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+    if 'Estado' in df.columns:
+        rojo = PatternFill('solid', fgColor='F8D7DA')
+        col = list(df.columns).index('Estado') + 1
+        for fila in ws.iter_rows(min_row=2):
+            if fila[col - 1].value == 'DIFERENCIA':
+                for c in fila:
+                    c.fill = rojo
