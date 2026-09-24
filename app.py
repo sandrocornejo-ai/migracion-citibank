@@ -15,7 +15,13 @@ from procesador import (
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EQUIV_DEFAULT = os.path.join(BASE_DIR, 'data', 'Equivalencia columnas conceptos.xlsx')
+_NOMBRE_EQUIV = 'Equivalencia columnas conceptos.xlsx'
+# Se busca en data/ y, si no está, en la raíz del repo
+EQUIV_DEFAULT = next(
+    (p for p in (os.path.join(BASE_DIR, 'data', _NOMBRE_EQUIV), os.path.join(BASE_DIR, _NOMBRE_EQUIV))
+     if os.path.exists(p)),
+    os.path.join(BASE_DIR, 'data', _NOMBRE_EQUIV),
+)
 
 st.set_page_config(page_title='Rex+ | Migración Citibank', page_icon='🏦', layout='wide')
 
