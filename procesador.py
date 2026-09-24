@@ -46,6 +46,7 @@ AFECTO_CESANTIA = {'cesEmpleado', 'cesAporteCi', 'cesAporteSol'}
 
 # Id de institución
 INST_CCAF = {'cajaCred', 'cajaLeas', 'cajaComp'}
+PREFIJO_APV = 'apv'   # apvi → 'apv' + Id institución de afp (ID AFP)
 INST_AFP = {'afp', 'cesEmpleado', 'aporteAFPemp', 'cesAporteCi', 'cesAporteSol', 'sis'}
 
 # Cotización de jubilación — valores fijos
@@ -311,6 +312,8 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
                 inst = limpiar_texto(r.get('CCAF'))
             elif idc in INST_AFP:
                 inst = limpiar_texto(r.get('ID AFP'))
+            elif idc == 'apvi':
+                inst = PREFIJO_APV + limpiar_texto(r.get('ID AFP'))
             elif idc == 'isapre':
                 inst = limpiar_texto(r.get(col_salud))
             elif idc == 'impuesto':
