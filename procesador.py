@@ -25,6 +25,8 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 COL_INICIO_CONCEPTOS = 62          # columna BK (0-based)
 
+CONCEPTO_LICENCIA = 'licenciaDias'   # monto = DIAS LICENCIAS cuando > 0
+
 SIEMPRE_GENERAR = ['sueldoBase', 'totalesEmpl', 'impuesto', 'cesEmpleado']
 
 TIPOS_HABER_AFECTO = {'haber afecto', 'haber afecto especial', 'haber solo tributable'}
@@ -216,6 +218,8 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
     for c in SIEMPRE_GENERAR:
         if c not in conceptos_orden:
             conceptos_orden.append(c)
+    # licenciaDias: se genera cuando DIAS LICENCIAS > 0 (va primero, como dato)
+    conceptos_orden.insert(0, CONCEPTO_LICENCIA)
 
     afectos = {c for c, t in tipo_concepto.items() if t in TIPOS_HABER_AFECTO}
     exentos = {c for c, t in tipo_concepto.items() if t in TIPOS_HABER_EXENTO}
@@ -249,6 +253,9 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
             if montos[idc] < 0:
                 log.append({'Tipo': 'ADVERTENCIA', 'Mes': mes, 'RUT': rut,
                             'Detalle': f"Monto negativo en {idc}: {montos[idc]:.0f}"})
+
+        # Días de licencia como concepto (no suma en haberes ni descuentos)
+        montos[CONCEPTO_LICENCIA] = max(num(r.get('DIAS LICENCIAS')), 0)
 
         suma_afectos = sum(v for k, v in montos.items() if k in afectos)
         suma_exentos = sum(v for k, v in montos.items() if k in exentos)
