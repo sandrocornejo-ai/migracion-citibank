@@ -49,7 +49,7 @@ AFECTO_CESANTIA = {'cesEmpleado', 'cesAporteCi', 'cesAporteSol'}
 # Id de institución
 INST_CCAF = {'cajaCred', 'cajaLeas', 'cajaComp'}
 PREFIJO_APV = 'apv'   # apvi → 'apv' + Id institución de afp (ID AFP)
-INST_AFP = {'afp', 'cesEmpleado', 'aporteAFPemp', 'cesAporteCi', 'cesAporteSol', 'sis'}
+INST_AFP = {'afp', 'afpAhor', 'cesEmpleado', 'aporteAFPemp', 'cesAporteCi', 'cesAporteSol', 'sis'}
 
 # Cotización de jubilación — valores fijos
 COTIZ_FIJA = {'cesEmpleado': 0.6, 'aporteAFPemp': 0.1, 'aporteFAPPCEV': 0.9}
