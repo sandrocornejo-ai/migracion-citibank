@@ -83,6 +83,11 @@ def limpiar_texto(v):
     return str(v).replace('\xa0', ' ').strip()
 
 
+def clave_columna(v):
+    """Clave de comparación de encabezados: sin espacios/saltos de línea y en minúsculas."""
+    return re.sub(r'\s+', '', limpiar_texto(v)).lower()
+
+
 def num(v):
     """Convierte a float; None/NaN/texto inválido → 0."""
     if v is None:
@@ -197,6 +202,14 @@ def procesar(df, equiv, orden, tipo_concepto, usa_fase=False, fase=None):
     Retorna (df_salida, df_log, resumen).
     """
     col_salud = next(c for c in COLS_ID_SALUD if c in df.columns)
+
+    # Homologa encabezados que difieren de la tabla de equivalencias solo en
+    # espacios / saltos de línea (ej. "Sueldo BaseFO_1003 ..." vs "Sueldo Base FO_1003 ...")
+    canon = {clave_columna(k): k for k in equiv}
+    renombrar = {c: canon[clave_columna(c)] for c in df.columns[COL_INICIO_CONCEPTOS:]
+                 if c not in equiv and clave_columna(c) in canon}
+    if renombrar:
+        df = df.rename(columns=renombrar)
 
     # Columnas de concepto (desde BK, con encabezado)
     cols_concepto = [c for c in df.columns[COL_INICIO_CONCEPTOS:]
